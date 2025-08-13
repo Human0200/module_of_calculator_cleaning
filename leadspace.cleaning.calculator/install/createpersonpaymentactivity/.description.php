@@ -3,21 +3,21 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true)
     die();
 
 $arActivityDescription = array(
-    "NAME" => GetMessage("CREATEPROCESSACTIVITY_NAME"),
-    "DESCRIPTION" => GetMessage("CREATEPROCESSACTIVITY_DESC"),
+    "NAME" => GetMessage("CREATEPAYMENTACTIVITY_NAME"),
+    "DESCRIPTION" => GetMessage("CREATEPAYMENTACTIVITY_DESC"),
     "TYPE" => "activity",
-    "CLASS" => "CreateProcessActivity",
+    "CLASS" => "CreatePersonPaymentActivity",
     "JSCLASS" => "BizProcActivity",
     "CATEGORY" => array(
         "ID" => "other",
     ),
     "PROPERTIES" => array(
         "Recipient" => array(
-            "NAME" => GetMessage("CREATEPROCESSACTIVITY_RECIPIENT"),
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_RECIPIENT"),
             "TYPE" => "string",
         ),
         "Subject" => array(
-            "NAME" => GetMessage("CREATEPROCESSACTIVITY_SUBJECT"),
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_SUBJECT"),
             "TYPE" => "string",
         ),
     ),

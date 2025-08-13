@@ -1,6 +1,6 @@
 <?php
-$MESS["CREATEPROCESSACTIVITY_NAME"] = "Создать процесс в ленте новостей";
-$MESS["CREATEPROCESSACTIVITY_DESC"] = "Создает процесс в ленте новостей";
-$MESS["CREATEPROCESSACTIVITY_RECIPIENT"] = "ID процесса";
-$MESS["CREATEPROCESSACTIVITY_SUBJECT"] = "Тема письма";
-$MESS["CREATEPROCESSACTIVITY_MESSAGE"] = "Текст письма";
+$MESS["CREATEPAYMENTACTIVITY_NAME"] = "Создание платежа физическому лицу через T-Bank API";
+$MESS["CREATEPAYMENTACTIVITY_DESC"] = "Создание платежа физическому лицу через T-Bank API";
+$MESS["CREATEPAYMENTACTIVITY_RECIPIENT"] = "3333";
+$MESS["CREATEPAYMENTACTIVITY_SUBJECT"] = "111";
+$MESS["CREATEPAYMENTACTIVITY_MESSAGE"] = "2222";
