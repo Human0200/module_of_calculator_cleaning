@@ -12,19 +12,47 @@ $arActivityDescription = array(
         "ID" => "other",
     ),
     "PROPERTIES" => array(
-        "Recipient" => array(
-            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_RECIPIENT"),
+        "RecipientName" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_RECIPIENT_NAME"),
             "TYPE" => "string",
         ),
-        "Subject" => array(
-            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_SUBJECT"),
+        "RecipientINN" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_RECIPIENT_INN"),
+            "TYPE" => "string",
+        ),
+        "RecipientAccount" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_RECIPIENT_ACCOUNT"),
+            "TYPE" => "string",
+        ),
+        "RecipientBankBIK" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_RECIPIENT_BANK_BIK"),
+            "TYPE" => "string",
+        ),
+        "Amount" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_AMOUNT"),
+            "TYPE" => "double",
+        ),
+        "PaymentPurpose" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_PAYMENT_PURPOSE"),
+            "TYPE" => "string",
+        ),
+        "PayerAccount" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_PAYER_ACCOUNT"),
+            "TYPE" => "string",
+        ),
+        "TBankToken" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_TBANK_TOKEN"),
+            "TYPE" => "string",
+        ),
+        "IsSandbox" => array(
+            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_IS_SANDBOX"),
+            "TYPE" => "bool",
+        ),
+    ),
+    "RETURN" => array(
+        "PaymentId" => array(
+            "NAME" => "ID созданного платежа (documentId)",
             "TYPE" => "string",
         ),
     ),
-     "RETURN" => array(
-        "Subject" => array(
-            "NAME" => "ID созданного элемента",
-            "TYPE" => "string",
-        ),
-     ),
 );

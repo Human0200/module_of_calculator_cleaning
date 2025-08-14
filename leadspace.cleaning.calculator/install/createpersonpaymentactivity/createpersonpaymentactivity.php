@@ -75,7 +75,7 @@ class CBPCreatePersonPaymentActivity extends CBPActivity
       $revenueTypeCode = trim($this->RevenueTypeCode);
       $collectionAmountNumber = $this->CollectionAmountNumber ? floatval($this->CollectionAmountNumber) : null;
       $recipientCorrAccountNumber = trim($this->RecipientCorrAccountNumber);
-      $this->WriteToTrackingService("Режим sandbox: " . ($isSandbox ? 'Да' : 'Нет'));
+     // $this->WriteToTrackingService("Режим sandbox: " . ($isSandbox ? 'Да' : 'Нет'));
 
       // Валидация обязательных полей
       if (empty($recipientName)) {
@@ -107,7 +107,7 @@ class CBPCreatePersonPaymentActivity extends CBPActivity
       
       // Инициализируем клиент T-Bank API
       $client = new TBankAPIClient($tbankToken, $isSandbox);
-      $this->WriteToTrackingService("T-Bank API клиент инициализирован");
+     // $this->WriteToTrackingService("T-Bank API клиент инициализирован");
 
       // Формируем данные для платежа
       $paymentData = [
@@ -145,27 +145,29 @@ class CBPCreatePersonPaymentActivity extends CBPActivity
         $paymentData["recipientCorrAccountNumber"] = $recipientCorrAccountNumber;
       }
 
-      $this->WriteToTrackingService("Данные платежа сформированы: " . json_encode($paymentData, JSON_UNESCAPED_UNICODE));
+    //  $this->WriteToTrackingService("Данные платежа сформированы: " . json_encode($paymentData, JSON_UNESCAPED_UNICODE));
 
       // Создаем платеж через API
       $result = $client->createPayment($paymentData);
 
-      $this->WriteToTrackingService("Ответ API - HTTP код: " . $result['http_code']);
-      $this->WriteToTrackingService("Ответ API - данные: " . json_encode($result['data'], JSON_UNESCAPED_UNICODE));
+     // $this->WriteToTrackingService("Ответ API - HTTP код: " . $result['http_code']);
+     // $this->WriteToTrackingService("Ответ API - данные: " . json_encode($result['data'], JSON_UNESCAPED_UNICODE));
 
       // Проверяем результат
       if ($result['http_code'] == 200 || $result['http_code'] == 201) {
-        $this->WriteToTrackingService("✓ Платеж успешно создан!");
+       // $this->WriteToTrackingService("✓ Платеж успешно создан!");
 
-        // Сохраняем ID платежа, если он есть в ответе
-        if (isset($result['data']['id'])) {
+        // Сохраняем ID платежа из ответа API
+        if (isset($result['data']['documentId'])) {
+          $this->PaymentId = $result['data']['documentId'];
+          $this->WriteToTrackingService("ID созданного платежа (documentId): " . $this->PaymentId);
+        } elseif (isset($result['data']['id'])) {
+          // Fallback на случай, если API возвращает 'id' вместо 'documentId'
           $this->PaymentId = $result['data']['id'];
-          $this->WriteToTrackingService("ID созданного платежа: " . $this->PaymentId);
-        }
-
-        // Логируем дополнительную информацию о платеже
-        if (isset($result['data']['status'])) {
-          $this->WriteToTrackingService("Статус платежа: " . $result['data']['status']);
+          $this->WriteToTrackingService("ID созданного платежа (id): " . $this->PaymentId);
+        } else {
+          $this->WriteToTrackingService("⚠️ Внимание: ID платежа не найден в ответе API");
+          $this->WriteToTrackingService("Структура ответа: " . json_encode($result['data'], JSON_UNESCAPED_UNICODE));
         }
 
         return CBPActivityExecutionStatus::Closed;

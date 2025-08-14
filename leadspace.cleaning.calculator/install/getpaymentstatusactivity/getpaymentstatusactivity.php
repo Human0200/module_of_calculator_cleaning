@@ -14,30 +14,12 @@ class CBPGetPaymentStatusActivity extends CBPActivity
     parent::__construct($name);
     $this->arProperties = [
       "Title" => "",
-      "RecipientName" => "",         // ФИО получателя
-      "RecipientINN" => "",          // ИНН получателя
-      "RecipientAccount" => "",      // Счет получателя
-      "RecipientBankBIK" => "",      // БИК банка получателя
-      "Amount" => "",                // Сумма платежа
-      "PaymentPurpose" => "",        // Назначение платежа
-      "PayerAccount" => "",          // Счет плательщика
+      "DocumentId" => "",            // ID документа для проверки статуса
       "TBankToken" => "",            // Токен T-Bank API
       "IsSandbox" => "Y",            // Режим sandbox (Y/N)
-      "PaymentId" => "",             // Переменная для сохранения ID платежа
       
-      // Налоговые поля (обязательные для API)
-      "TaxPayerStatus" => "0",       // Статус составителя расчетного документа
-      "KBK" => "0",                  // Код бюджетной классификации
-      "OKTMO" => "0",                // Код ОКТМО
-      "TaxEvidence" => "0",          // Основание налогового платежа
-      "TaxPeriod" => "0",            // Налоговый период
-      "TaxDocNumber" => "0",         // Номер налогового документа
-      "TaxDocDate" => "0",           // Дата налогового документа
-      
-      // Дополнительные поля для физ. лиц
-      "RevenueTypeCode" => "",       // Код вида выплаты (для физ. лиц)
-      "CollectionAmountNumber" => "", // Удержанная сумма
-      "RecipientCorrAccountNumber" => "", // Корр. счет банка получателя
+      // Возвращаемые значения
+      "PaymentStatus" => "",         // Статус платежа (EXECUTED, PENDING, ERROR и т.д.)
     ];
   }
 
@@ -51,134 +33,83 @@ class CBPGetPaymentStatusActivity extends CBPActivity
         throw new Exception("Класс HttpClient не найден. Обновите Битрикс до актуальной версии.");
       }
 
-      // Получаем параметры платежа
-      $recipientName = trim($this->RecipientName);
-      $recipientINN = trim($this->RecipientINN);
-      $recipientAccount = trim($this->RecipientAccount);
-      $recipientBankBIK = trim($this->RecipientBankBIK);
-      $amount = floatval($this->Amount);
-      $paymentPurpose = trim($this->PaymentPurpose);
-      $payerAccount = trim($this->PayerAccount);
+      // Получаем параметры
+      $documentId = $this->DocumentId;
       $tbankToken = trim($this->TBankToken);
       $isSandbox = ($this->IsSandbox === 'Y');
 
-      // Налоговые поля
-      $taxPayerStatus = trim($this->TaxPayerStatus) ?: "0";
-      $kbk = trim($this->KBK) ?: "0";
-      $oktmo = trim($this->OKTMO) ?: "0";
-      $taxEvidence = trim($this->TaxEvidence) ?: "0";
-      $taxPeriod = trim($this->TaxPeriod) ?: "0";
-      $taxDocNumber = trim($this->TaxDocNumber) ?: "0";
-      $taxDocDate = trim($this->TaxDocDate) ?: "0";
-
-      // Дополнительные поля
-      $revenueTypeCode = trim($this->RevenueTypeCode);
-      $collectionAmountNumber = $this->CollectionAmountNumber ? floatval($this->CollectionAmountNumber) : null;
-      $recipientCorrAccountNumber = trim($this->RecipientCorrAccountNumber);
-      $this->WriteToTrackingService("Режим sandbox: " . ($isSandbox ? 'Да' : 'Нет'));
+     // $this->WriteToTrackingService("Режим sandbox: " . ($isSandbox ? 'Да' : 'Нет'));
 
       // Валидация обязательных полей
-      if (empty($recipientName)) {
-        throw new Exception("Не указано ФИО получателя");
-      }
-      if (empty($recipientINN)) {
-        throw new Exception("Не указан ИНН получателя");
-      }
-      if (empty($recipientAccount)) {
-        throw new Exception("Не указан счет получателя");
-      }
-      if (empty($recipientBankBIK)) {
-        throw new Exception("Не указан БИК банка получателя");
-      }
-      if ($amount <= 0) {
-        throw new Exception("Сумма платежа должна быть больше нуля");
-      }
-      if (empty($paymentPurpose)) {
-        throw new Exception("Не указано назначение платежа");
-      }
-      if (empty($payerAccount)) {
-        throw new Exception("Не указан счет плательщика");
+      if (empty($documentId)) {
+        throw new Exception("Не указан ID документа для проверки статуса");
       }
       if (empty($tbankToken)) {
         throw new Exception("Не указан токен T-Bank API");
       }
 
+      // Проверяем формат UUID
+      if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $documentId)) {
+        throw new Exception("ID документа должен быть в формате UUID: " . $documentId);
+      }
+
+      //$this->WriteToTrackingService("ID документа для проверки: " . $documentId);
+
       Loader::includeModule('leadspace.cleaning.calculator');
       
       // Инициализируем клиент T-Bank API
       $client = new TBankAPIClient($tbankToken, $isSandbox);
-      $this->WriteToTrackingService("T-Bank API клиент инициализирован");
+      //$this->WriteToTrackingService("T-Bank API клиент инициализирован");
 
-      // Формируем данные для платежа
-      $paymentData = [
-        "documentNumber" => uniqid('PAY_'), // Уникальный номер документа
-        "date" => date('c'), // Текущая дата в ISO формате
-        "amount" => $amount,
-        "recipientName" => $recipientName,
-        "inn" => $recipientINN,
-        "kpp" => "0", // Для физлиц всегда 0
-        "bankAcnt" => $recipientAccount,
-        "bankBik" => $recipientBankBIK,
-        "accountNumber" => $payerAccount,
-        "paymentPurpose" => $paymentPurpose,
-        "executionOrder" => 5, // Стандартная очередность
-        "uin" => "0", // УИН (если не требуется - 0)
-        
-        // Обязательные налоговые поля
-        "taxPayerStatus" => $taxPayerStatus,
-        "kbk" => $kbk,
-        "oktmo" => $oktmo,
-        "taxEvidence" => $taxEvidence,
-        "taxPeriod" => $taxPeriod,
-        "taxDocNumber" => $taxDocNumber,
-        "taxDocDate" => $taxDocDate,
-      ];
+      // Получаем статусы платежей
+      $result = $client->getPaymentStatus([$documentId]);
 
-      // Добавляем дополнительные поля, если они заполнены
-      if (!empty($revenueTypeCode)) {
-        $paymentData["revenueTypeCode"] = $revenueTypeCode;
-      }
-      if ($collectionAmountNumber !== null) {
-        $paymentData["collectionAmountNumber"] = $collectionAmountNumber;
-      }
-      if (!empty($recipientCorrAccountNumber)) {
-        $paymentData["recipientCorrAccountNumber"] = $recipientCorrAccountNumber;
-      }
-
-      $this->WriteToTrackingService("Данные платежа сформированы: " . json_encode($paymentData, JSON_UNESCAPED_UNICODE));
-
-      // Создаем платеж через API
-      $result = $client->createPayment($paymentData);
-
-      $this->WriteToTrackingService("Ответ API - HTTP код: " . $result['http_code']);
-      $this->WriteToTrackingService("Ответ API - данные: " . json_encode($result['data'], JSON_UNESCAPED_UNICODE));
+      //$this->WriteToTrackingService("Ответ API - HTTP код: " . $result['http_code']);
+     // $this->WriteToTrackingService("Ответ API - данные: " . json_encode($result['data'], JSON_UNESCAPED_UNICODE));
 
       // Проверяем результат
-      if ($result['http_code'] == 200 || $result['http_code'] == 201) {
-        $this->WriteToTrackingService("✓ Платеж успешно создан!");
+      if ($result['http_code'] == 200) {
+       // $this->WriteToTrackingService("✓ Статус платежа получен успешно!");
 
-        // Сохраняем ID платежа, если он есть в ответе
-        if (isset($result['data']['id'])) {
-          $this->PaymentId = $result['data']['id'];
-          $this->WriteToTrackingService("ID созданного платежа: " . $this->PaymentId);
+        $responseData = $result['data'];
+        
+        // Инициализируем значение по умолчанию
+        $this->PaymentStatus = "UNKNOWN";
+        
+        // Проверяем успешные результаты
+        if (isset($responseData['result']) && is_array($responseData['result']) && count($responseData['result']) > 0) {
+          $payment = $responseData['result'][0]; // Берем первый элемент
+          
+          $this->PaymentStatus = $payment['status'];
+         $this->WriteToTrackingService("✓ Статус платежа {$documentId}: " . $this->PaymentStatus);
+          
+          if (isset($payment['comment'])) {
+            $this->WriteToTrackingService("Комментарий: " . $payment['comment']);
+          }
+        }
+        
+        // Проверяем ошибки
+        if (isset($responseData['resultError']) && is_array($responseData['resultError']) && count($responseData['resultError']) > 0) {
+          $error = $responseData['resultError'][0]; // Берем первую ошибку
+          
+          $this->PaymentStatus = 'ERROR';
+          $this->WriteToTrackingService("✗ Ошибка для {$documentId}: {$error['errorCode']} - {$error['errorMessage']}");
         }
 
-        // Логируем дополнительную информацию о платеже
-        if (isset($result['data']['status'])) {
-          $this->WriteToTrackingService("Статус платежа: " . $result['data']['status']);
-        }
+        // Простая статистика
+       // $this->WriteToTrackingService("📊 Результат: Статус = " . $this->PaymentStatus);
 
         return CBPActivityExecutionStatus::Closed;
       } else {
         // Обрабатываем ошибки API
-        $errorMessage = "Ошибка создания платежа. HTTP код: " . $result['http_code'];
+        $errorMessage = "Ошибка получения статуса платежей. HTTP код: " . $result['http_code'];
 
         if (isset($result['data']['error'])) {
           $errorMessage .= ". Ошибка: " . $result['data']['error'];
         }
 
-        if (isset($result['data']['message'])) {
-          $errorMessage .= ". Сообщение: " . $result['data']['message'];
+        if (isset($result['data']['errorMessage'])) {
+          $errorMessage .= ". Сообщение: " . $result['data']['errorMessage'];
         }
 
         $this->WriteToTrackingService("✗ " . $errorMessage);
@@ -197,21 +128,12 @@ class CBPGetPaymentStatusActivity extends CBPActivity
     $errors = [];
 
     // Проверяем обязательные поля
-    $requiredFields = [
-      'RecipientName' => 'Не указано ФИО получателя',
-      'RecipientINN' => 'Не указан ИНН получателя',
-      'RecipientAccount' => 'Не указан счет получателя',
-      'RecipientBankBIK' => 'Не указан БИК банка получателя',
-      'Amount' => 'Не указана сумма платежа',
-      'PaymentPurpose' => 'Не указано назначение платежа',
-      'PayerAccount' => 'Не указан счет плательщика',
-      'TBankToken' => 'Не указан токен T-Bank API'
-    ];
-
-    foreach ($requiredFields as $field => $errorMessage) {
-      if (empty($arTestProperties[$field])) {
-        $errors[] = ["code" => "NotExist", "message" => $errorMessage];
-      }
+    if (empty($arTestProperties['DocumentId'])) {
+      $errors[] = ["code" => "NotExist", "message" => "Не указан ID документа для проверки статуса"];
+    }
+    
+    if (empty($arTestProperties['TBankToken'])) {
+      $errors[] = ["code" => "NotExist", "message" => "Не указан токен T-Bank API"];
     }
 
     return array_merge($errors, parent::ValidateProperties($arTestProperties, $user));
@@ -222,29 +144,9 @@ class CBPGetPaymentStatusActivity extends CBPActivity
     $runtime = CBPRuntime::GetRuntime();
 
     $arMap = [
-      "RecipientName" => "recipient_name",
-      "RecipientINN" => "recipient_inn",
-      "RecipientAccount" => "recipient_account",
-      "RecipientBankBIK" => "recipient_bank_bik",
-      "Amount" => "amount",
-      "PaymentPurpose" => "payment_purpose",
-      "PayerAccount" => "payer_account",
+      "DocumentId" => "document_ids",
       "TBankToken" => "tbank_token",
       "IsSandbox" => "is_sandbox",
-      
-      // Налоговые поля
-      "TaxPayerStatus" => "tax_payer_status",
-      "KBK" => "kbk",
-      "OKTMO" => "oktmo",
-      "TaxEvidence" => "tax_evidence",
-      "TaxPeriod" => "tax_period",
-      "TaxDocNumber" => "tax_doc_number",
-      "TaxDocDate" => "tax_doc_date",
-      
-      // Дополнительные поля
-      "RevenueTypeCode" => "revenue_type_code",
-      "CollectionAmountNumber" => "collection_amount_number",
-      "RecipientCorrAccountNumber" => "recipient_corr_account_number",
     ];
 
     // Если значения ещё не установлены, извлекаем из текущих свойств активности
@@ -266,29 +168,9 @@ class CBPGetPaymentStatusActivity extends CBPActivity
     $arErrors = [];
 
     $arMap = [
-      'RecipientName' => 'recipient_name',
-      'RecipientINN' => 'recipient_inn',
-      'RecipientAccount' => 'recipient_account',
-      'RecipientBankBIK' => 'recipient_bank_bik',
-      'Amount' => 'amount',
-      'PaymentPurpose' => 'payment_purpose',
-      'PayerAccount' => 'payer_account',
+      'DocumentId' => 'document_ids',
       'TBankToken' => 'tbank_token',
       'IsSandbox' => 'is_sandbox',
-      
-      // Налоговые поля
-      'TaxPayerStatus' => 'tax_payer_status',
-      'KBK' => 'kbk',
-      'OKTMO' => 'oktmo',
-      'TaxEvidence' => 'tax_evidence',
-      'TaxPeriod' => 'tax_period',
-      'TaxDocNumber' => 'tax_doc_number',
-      'TaxDocDate' => 'tax_doc_date',
-      
-      // Дополнительные поля
-      'RevenueTypeCode' => 'revenue_type_code',
-      'CollectionAmountNumber' => 'collection_amount_number',
-      'RecipientCorrAccountNumber' => 'recipient_corr_account_number',
     ];
 
     $arProperties = [];
@@ -299,14 +181,6 @@ class CBPGetPaymentStatusActivity extends CBPActivity
     // Устанавливаем значения по умолчанию
     if (empty($arProperties['IsSandbox'])) {
       $arProperties['IsSandbox'] = 'Y';
-    }
-    
-    // Значения по умолчанию для налоговых полей (небюджетный платеж)
-    $taxDefaults = ['TaxPayerStatus', 'KBK', 'OKTMO', 'TaxEvidence', 'TaxPeriod', 'TaxDocNumber', 'TaxDocDate'];
-    foreach ($taxDefaults as $field) {
-      if (empty($arProperties[$field])) {
-        $arProperties[$field] = '0';
-      }
     }
 
     $arErrors = self::ValidateProperties($arProperties);

@@ -3,28 +3,32 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true)
     die();
 
 $arActivityDescription = array(
-    "NAME" => GetMessage("CREATEPAYMENTACTIVITY_NAME"),
-    "DESCRIPTION" => GetMessage("CREATEPAYMENTACTIVITY_DESC"),
+    "NAME" => GetMessage("GETPAYMENTSTATUSACTIVITY_NAME"),
+    "DESCRIPTION" => GetMessage("GETPAYMENTSTATUSACTIVITY_DESC"),
     "TYPE" => "activity",
-    "CLASS" => "CreatePersonPaymentActivity",
+    "CLASS" => "CBPGetPaymentStatusActivity",
     "JSCLASS" => "BizProcActivity",
     "CATEGORY" => array(
         "ID" => "other",
     ),
     "PROPERTIES" => array(
-        "Recipient" => array(
-            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_RECIPIENT"),
+        "DocumentId" => array(
+            "NAME" => GetMessage("GETPAYMENTSTATUSACTIVITY_DOCUMENT_ID"),
             "TYPE" => "string",
         ),
-        "Subject" => array(
-            "NAME" => GetMessage("CREATEPAYMENTACTIVITY_SUBJECT"),
+        "TBankToken" => array(
+            "NAME" => GetMessage("GETPAYMENTSTATUSACTIVITY_TOKEN"),
+            "TYPE" => "string",
+        ),
+        "IsSandbox" => array(
+            "NAME" => GetMessage("GETPAYMENTSTATUSACTIVITY_SANDBOX"),
+            "TYPE" => "bool",
+        ),
+    ),
+    "RETURN" => array(
+        "PaymentStatus" => array(
+            "NAME" => "Статус платежа",
             "TYPE" => "string",
         ),
     ),
-     "RETURN" => array(
-        "Subject" => array(
-            "NAME" => "ID созданного элемента",
-            "TYPE" => "string",
-        ),
-     ),
 );

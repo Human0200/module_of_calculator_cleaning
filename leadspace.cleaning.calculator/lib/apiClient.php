@@ -16,7 +16,7 @@ class TBankAPIClient
         // Правильные URL согласно требованиям
         $this->baseUrl = $isSandbox ?
             'https://business.tbank.ru/openapi/sandbox' :
-            'https://secured-openapi.tbank.ru';
+            'https://business.tbank.ru/openapi';
 
         // Используем HTTP клиент Битрикса
         $this->httpClient = new HttpClient();
@@ -281,7 +281,147 @@ class TBankAPIClient
             $errorMessage = isset($responseData['errorMessage']) ?
                 $responseData['errorMessage'] : 'HTTP Error: ' . $httpCode;
             $this->writeLog('ERROR: ' . $errorMessage);
+            $this->writeLog('Required data: ' . json_encode($response));
             throw new \Exception($errorMessage);
+        }
+
+        return [
+            'http_code' => $httpCode,
+            'data' => json_decode($response, true),
+            'raw_response' => $response
+        ];
+    }
+
+    /**
+     * 3. Получение статуса платежа
+     */
+    public function getPaymentStatus($documentIds)
+    {
+        // URL для получения статуса платежа
+        $url = $this->baseUrl . '/api/v1/payment/status';
+
+        // Формируем данные запроса
+        if (is_string($documentIds)) {
+            // Если передана строка, парсим её
+            $documentIds = array_filter(array_map('trim', explode(',', $documentIds)));
+        }
+
+        if (!is_array($documentIds) || empty($documentIds)) {
+            throw new \Exception('Document IDs must be a non-empty array or comma-separated string');
+        }
+
+        $requestData = [
+            'documentIds' => $documentIds
+        ];
+
+        // Логируем запрос
+        $this->writeLog('=== T-Bank Payment Status Request ===');
+        $this->writeLog('Request URL: ' . $url);
+        $this->writeLog('Document IDs: ' . json_encode($documentIds, JSON_UNESCAPED_UNICODE));
+
+        // Формируем JSON
+        $jsonData = json_encode($requestData, JSON_UNESCAPED_UNICODE);
+
+        if ($jsonData === false) {
+            $this->writeLog('ERROR: Failed to encode request data to JSON: ' . json_last_error_msg());
+            throw new \Exception('Failed to encode request data to JSON: ' . json_last_error_msg());
+        }
+
+        $this->writeLog('Request JSON: ' . $jsonData);
+
+        // Проверяем доступность cURL
+        if (function_exists('\curl_init')) {
+            return $this->getPaymentStatusWithCurl($url, $jsonData);
+        } else {
+            return $this->getPaymentStatusWithHttpClient($url, $jsonData);
+        }
+    }
+
+    /**
+     * Получение статуса платежа через cURL
+     */
+    private function getPaymentStatusWithCurl($url, $jsonData)
+    {
+        $this->writeLog('Using cURL for payment status request');
+
+        // Настраиваем заголовки
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'Authorization: Bearer ' . $this->token,
+            'User-Agent: TBankAPIClient/1.0'
+        ];
+
+        // Используем cURL
+        $ch = \curl_init();
+        \curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $jsonData,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_VERBOSE => false,
+            CURLOPT_HEADER => true,
+        ]);
+
+        $fullResponse = \curl_exec($ch);
+        $httpCode = \curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = \curl_error($ch);
+        $headerSize = \curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        \curl_close($ch);
+
+        // Разделяем заголовки и тело ответа
+        $responseHeaders = substr($fullResponse, 0, $headerSize);
+        $response = substr($fullResponse, $headerSize);
+
+        // Логируем ответ
+        $this->writeLog('Response HTTP Code: ' . $httpCode);
+        $this->writeLog('Response Body: ' . $response);
+        $this->writeLog('cURL Error: ' . $curlError);
+        $this->writeLog('=== End T-Bank Payment Status Request ===');
+
+        if (!empty($curlError)) {
+            $this->writeLog('ERROR: cURL Error: ' . $curlError);
+            throw new \Exception('cURL Error: ' . $curlError);
+        }
+
+        return [
+            'http_code' => $httpCode,
+            'data' => json_decode($response, true),
+            'raw_response' => $response
+        ];
+    }
+
+    /**
+     * Получение статуса платежа через HttpClient Битрикса
+     */
+    private function getPaymentStatusWithHttpClient($url, $jsonData)
+    {
+        $this->writeLog('Using Bitrix HttpClient for payment status request');
+
+        // Переустанавливаем заголовки
+        $this->httpClient->setHeader('Authorization', 'Bearer ' . $this->token);
+        $this->httpClient->setHeader('Content-Type', 'application/json');
+        $this->httpClient->setHeader('Accept', 'application/json');
+        $this->httpClient->setHeader('User-Agent', 'TBankAPIClient/1.0');
+
+        // Выполняем запрос
+        $response = $this->httpClient->post($url, $jsonData);
+        $httpCode = $this->httpClient->getStatus();
+        $error = $this->httpClient->getError();
+
+        // Логируем ответ
+        $this->writeLog('HttpClient Response: HTTP ' . $httpCode . ', Body: ' . $response);
+        $this->writeLog('HttpClient errors: ' . json_encode($error));
+        $this->writeLog('=== End T-Bank Payment Status Request ===');
+
+        if (!empty($error)) {
+            $this->writeLog('ERROR: HTTP Error: ' . implode(', ', $error));
+            throw new \Exception('HTTP Error: ' . implode(', ', $error));
         }
 
         return [
