@@ -137,6 +137,177 @@ switch ($action) {
         echo json_encode($services);
         break;
 
+    case 'duplicate_product_in_deal':
+        $result = ['success' => false, 'message' => ''];
+
+        // Получаем параметры
+        $dealId = (int)$request->get('deal_id');
+        $productId = (int)$request->get('product_id');
+        $productName = $request->get('product_name');
+        $price = (float)$request->get('price');
+        $quantity = (float)$request->get('quantity');
+        $unit = $request->get('unit') ?? 'шт';
+
+        // Проверка обязательных полей
+        if ($dealId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Не указан ID сделки']);
+            return;
+        }
+
+        if ($price <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Не указана цена товара']);
+            return;
+        }
+
+        if ($quantity <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Не указано количество товара']);
+            return;
+        }
+
+        try {
+            // Подключаем необходимые модули
+            if (!Loader::includeModule("crm")) {
+                throw new Exception('Не удалось подключить модуль CRM');
+            }
+
+            // Проверяем существование сделки
+            $dealCheck = \Bitrix\Crm\DealTable::getById($dealId)->fetch();
+            if (!$dealCheck) {
+                throw new Exception('Сделка не найдена');
+            }
+
+            // Определяем код единицы измерения
+            $measureCode = 796; // По умолчанию "штука"
+            $measureName = $unit;
+
+            switch (strtolower($unit)) {
+                case 'm2':
+                case 'м²':
+                    $measureCode = 055; // Квадратный метр
+                    $measureName = 'м²';
+                    break;
+                case 'm':
+                case 'м':
+                    $measureCode = 006; // Метр
+                    $measureName = 'м';
+                    break;
+                case 'kg':
+                case 'кг':
+                    $measureCode = 166; // Килограмм
+                    $measureName = 'кг';
+                    break;
+                case 'l':
+                case 'л':
+                    $measureCode = 112; // Литр
+                    $measureName = 'л';
+                    break;
+                case 'hour':
+                case 'час':
+                    $measureCode = 356; // Час
+                    $measureName = 'час';
+                    break;
+                case 'day':
+                case 'день':
+                    $measureCode = 359; // День
+                    $measureName = 'день';
+                    break;
+                case 'm3':
+                case 'м³':
+                    $measureCode = 113; // Кубический метр
+                    $measureName = 'м³';
+                    break;
+                case 'pack':
+                case 'упак':
+                    $measureCode = 778; // Упаковка
+                    $measureName = 'упак';
+                    break;
+                case 'service':
+                case 'услуга':
+                    $measureCode = 796; // Штука (для услуг)
+                    $measureName = 'услуга';
+                    break;
+                default:
+                    $measureCode = 796; // Штука
+                    $measureName = 'шт';
+                    break;
+            }
+
+            // Подготавливаем данные для нового товара
+            $productRowFields = [
+                'OWNER_ID' => $dealId,
+                'OWNER_TYPE' => 'D',
+                'PRODUCT_NAME' => $productName,
+                'PRICE' => $price,
+                'PRICE_EXCLUSIVE' => $price,
+                'PRICE_NETTO' => $price,
+                'PRICE_BRUTTO' => $price,
+                'QUANTITY' => $quantity,
+                'MEASURE_CODE' => $measureCode,
+                'MEASURE_NAME' => $measureName,
+                'CURRENCY_ID' => 'RUB',
+                'CUSTOMIZED' => 'Y',
+                'SORT' => 100
+            ];
+
+            // Добавляем товар в сделку
+            $addResult = \Bitrix\Crm\ProductRowTable::add($productRowFields);
+
+            if ($addResult->isSuccess()) {
+                $productRowId = $addResult->getId();
+
+                // Пересчитываем общую сумму сделки
+                $totalSum = 0;
+                $productRows = \Bitrix\Crm\ProductRowTable::getList([
+                    'filter' => [
+                        'OWNER_ID' => $dealId,
+                        'OWNER_TYPE' => 'D'
+                    ],
+                    'select' => ['PRICE', 'QUANTITY']
+                ]);
+
+                while ($row = $productRows->fetch()) {
+                    $totalSum += ($row['PRICE'] * $row['QUANTITY']);
+                }
+
+                // Обновляем сумму сделки
+                $updateResult = \Bitrix\Crm\DealTable::update($dealId, [
+                    'OPPORTUNITY' => $totalSum,
+                    'CURRENCY_ID' => 'RUB'
+                ]);
+
+                if ($updateResult->isSuccess()) {
+                    $result = [
+                        'success' => true,
+                        'message' => "Товар \"{$productName}\" успешно скопирован в сделку",
+                        'data' => [
+                            'product_row_id' => $productRowId,
+                            'product_id' => $productId,
+                            'product_name' => $productName . ' (копия)',
+                            'quantity' => $quantity,
+                            'price' => $price,
+                            'total_deal_sum' => $totalSum,
+                            'unit' => $measureName
+                        ]
+                    ];
+                } else {
+                    $result = [
+                        'success' => true,
+                        'message' => "Товар скопирован, но не удалось обновить сумму сделки: " .
+                            implode(', ', $updateResult->getErrorMessages())
+                    ];
+                }
+            } else {
+                $result['message'] = 'Ошибка при дублировании товара: ' .
+                    implode(', ', $addResult->getErrorMessages());
+            }
+        } catch (Exception $e) {
+            $result['message'] = 'Ошибка: ' . $e->getMessage();
+            error_log("Duplicate product error: " . $e->getMessage());
+        }
+
+        echo json_encode($result);
+        break;
+
     case 'get_work_types':
         $workTypes = [];
         if ($parentId > 0) {
@@ -484,163 +655,163 @@ switch ($action) {
         }
         break;
 
-case 'add_product_to_deal':
-    $result = ['success' => false, 'message' => ''];
-    $requestData = $request->get('data');
+    case 'add_product_to_deal':
+        $result = ['success' => false, 'message' => ''];
+        $requestData = $request->get('data');
 
-    // Получаем основные параметры
-    $dealId = (int)($requestData['deal_id'] ?? $request->get('deal_id'));
-    $productId = (int)($requestData['product_id'] ?? $request->get('product_id'));
-    $unit = $requestData['unit'] ?? $request->get('unit') ?? 'pcs';
-    
-    // Используем $unit вместо $requestData['unit'] в switch
-    switch ($unit) {
-        case 'm2':
-            $quantity = 1;
-            $volume_price = (float)($requestData['volume_price'] ?? $request->get('volume_price') ?? 0);
-            $volume = (float)($requestData['volume'] ?? $request->get('volume') ?? 0);
-            break;
-        default:
-            $quantity = (float)($requestData['quantity'] ?? $request->get('quantity') ?? 1);
-            $volume_price = 0;
-            $volume = 0;
-            break;
-    }
-    $price = (float)($requestData['price'] ?? $request->get('price'));
-    $coefficient = (float)($requestData['coefficient'] ?? $request->get('coefficient') ?? 1.0);
+        // Получаем основные параметры
+        $dealId = (int)($requestData['deal_id'] ?? $request->get('deal_id'));
+        $productId = (int)($requestData['product_id'] ?? $request->get('product_id'));
+        $unit = $requestData['unit'] ?? $request->get('unit') ?? 'pcs';
 
-    // Проверка обязательных полей
-    if ($dealId <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Не указан ID сделки']);
-        return;
-    }
+        // Используем $unit вместо $requestData['unit'] в switch
+        switch ($unit) {
+            case 'm2':
+                $quantity = 1;
+                $volume_price = (float)($requestData['volume_price'] ?? $request->get('volume_price') ?? 0);
+                $volume = (float)($requestData['volume'] ?? $request->get('volume') ?? 0);
+                break;
+            default:
+                $quantity = (float)($requestData['quantity'] ?? $request->get('quantity') ?? 1);
+                $volume_price = 0;
+                $volume = 0;
+                break;
+        }
+        $price = (float)($requestData['price'] ?? $request->get('price'));
+        $coefficient = (float)($requestData['coefficient'] ?? $request->get('coefficient') ?? 1.0);
 
-    if ($productId <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Не выбран товар']);
-        return;
-    }
-
-    try {
-        // Подключаем необходимые модули
-        if (!Loader::includeModule("iblock") || !Loader::includeModule("crm") || !Loader::includeModule("catalog")) {
-            throw new Exception('Не удалось подключить необходимые модули');
+        // Проверка обязательных полей
+        if ($dealId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Не указан ID сделки']);
+            return;
         }
 
-        // Проверяем существование сделки
-        $dealCheck = \Bitrix\Crm\DealTable::getById($dealId)->fetch();
-        if (!$dealCheck) {
-            throw new Exception('Сделка не найдена');
+        if ($productId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Не выбран товар']);
+            return;
         }
 
-        // Получаем информацию о товаре
-        $product = CIBlockElement::GetByID($productId)->Fetch();
-        if (!$product) {
-            throw new Exception('Товар не найден');
-        }
-
-        // Получаем оптимальную цену если не передана
-        if ($price <= 0) {
-            // Сначала пытаемся получить из каталога
-            $priceData = \Bitrix\Catalog\PriceTable::getList([
-                'filter' => ['PRODUCT_ID' => $productId, 'CATALOG_GROUP_ID' => 1],
-                'select' => ['PRICE']
-            ])->fetch();
-
-            if ($priceData) {
-                $price = $priceData['PRICE'];
-            } else {
-                // Если не найдена, пробуем старый способ
-                $priceData = CCatalogProduct::GetOptimalPrice($productId, 1);
-                $price = $priceData['DISCOUNT_PRICE'] ?? $priceData['PRICE']['PRICE'] ?? 0;
-            }
-        }
-
-        $sumvolume = $volume * $volume_price;
-        $finalPrice = round($price * $coefficient + $sumvolume, 2);
-
-        $productRowFields = [
-            'OWNER_ID' => $dealId,
-            'OWNER_TYPE' => 'D',
-            'PRODUCT_ID' => $productId,
-            'PRODUCT_NAME' => $product['NAME'],
-            'PRICE' => $finalPrice,
-            'PRICE_EXCLUSIVE' => $finalPrice,
-            'PRICE_NETTO' => $finalPrice,
-            'PRICE_BRUTTO' => $finalPrice,
-            'QUANTITY' => $quantity,
-            'MEASURE_CODE' => 796, // Код единицы измерения "штука"
-            'MEASURE_NAME' => $unit,
-            'CURRENCY_ID' => 'RUB',
-            'CUSTOMIZED' => 'Y', // Помечаем как измененный вручную
-            'SORT' => 100
-        ];
-
-        // Добавляем товар в сделку
-        $addResult = \Bitrix\Crm\ProductRowTable::add($productRowFields);
-
-        if ($addResult->isSuccess()) {
-            $productRowId = $addResult->getId();
-
-            // Пересчитываем общую сумму сделки
-            $totalSum = 0;
-            $productRows = \Bitrix\Crm\ProductRowTable::getList([
-                'filter' => [
-                    'OWNER_ID' => $dealId,
-                    'OWNER_TYPE' => 'D'
-                ],
-                'select' => ['PRICE', 'QUANTITY']
-            ]);
-
-            while ($row = $productRows->fetch()) {
-                $totalSum += ($row['PRICE'] * $row['QUANTITY']);
+        try {
+            // Подключаем необходимые модули
+            if (!Loader::includeModule("iblock") || !Loader::includeModule("crm") || !Loader::includeModule("catalog")) {
+                throw new Exception('Не удалось подключить необходимые модули');
             }
 
-            // Обновляем сделку современным способом
-            $updateFields = [
-                'OPPORTUNITY' => $totalSum,
+            // Проверяем существование сделки
+            $dealCheck = \Bitrix\Crm\DealTable::getById($dealId)->fetch();
+            if (!$dealCheck) {
+                throw new Exception('Сделка не найдена');
+            }
+
+            // Получаем информацию о товаре
+            $product = CIBlockElement::GetByID($productId)->Fetch();
+            if (!$product) {
+                throw new Exception('Товар не найден');
+            }
+
+            // Получаем оптимальную цену если не передана
+            if ($price <= 0) {
+                // Сначала пытаемся получить из каталога
+                $priceData = \Bitrix\Catalog\PriceTable::getList([
+                    'filter' => ['PRODUCT_ID' => $productId, 'CATALOG_GROUP_ID' => 1],
+                    'select' => ['PRICE']
+                ])->fetch();
+
+                if ($priceData) {
+                    $price = $priceData['PRICE'];
+                } else {
+                    // Если не найдена, пробуем старый способ
+                    $priceData = CCatalogProduct::GetOptimalPrice($productId, 1);
+                    $price = $priceData['DISCOUNT_PRICE'] ?? $priceData['PRICE']['PRICE'] ?? 0;
+                }
+            }
+
+            $sumvolume = $volume * $volume_price;
+            $finalPrice = round($price * $coefficient + $sumvolume, 2);
+
+            $productRowFields = [
+                'OWNER_ID' => $dealId,
+                'OWNER_TYPE' => 'D',
+                'PRODUCT_ID' => $productId,
+                'PRODUCT_NAME' => $product['NAME'],
+                'PRICE' => $finalPrice,
+                'PRICE_EXCLUSIVE' => $finalPrice,
+                'PRICE_NETTO' => $finalPrice,
+                'PRICE_BRUTTO' => $finalPrice,
+                'QUANTITY' => $quantity,
+                'MEASURE_CODE' => 796, // Код единицы измерения "штука"
+                'MEASURE_NAME' => $unit,
                 'CURRENCY_ID' => 'RUB',
-                'UF_CRM_DEAL_CALCULATION_DATA' => json_encode([
-                    'coefficient' => $coefficient,
-                    'base_price' => $price,
-                    'final_price' => $finalPrice
-                ])
+                'CUSTOMIZED' => 'Y', // Помечаем как измененный вручную
+                'SORT' => 100
             ];
 
-            $updateResult = \Bitrix\Crm\DealTable::update($dealId, $updateFields);
+            // Добавляем товар в сделку
+            $addResult = \Bitrix\Crm\ProductRowTable::add($productRowFields);
 
-            if ($updateResult->isSuccess()) {
-                $result = [
-                    'success' => true,
-                    'message' => 'Товар успешно добавлен в сделку',
-                    'data' => [
-                        'product_row_id' => $productRowId,
-                        'product_id' => $productId,
-                        'product_name' => $product['NAME'],
-                        'quantity' => $quantity,
-                        'base_price' => $price,
-                        'final_price' => $finalPrice,
+            if ($addResult->isSuccess()) {
+                $productRowId = $addResult->getId();
+
+                // Пересчитываем общую сумму сделки
+                $totalSum = 0;
+                $productRows = \Bitrix\Crm\ProductRowTable::getList([
+                    'filter' => [
+                        'OWNER_ID' => $dealId,
+                        'OWNER_TYPE' => 'D'
+                    ],
+                    'select' => ['PRICE', 'QUANTITY']
+                ]);
+
+                while ($row = $productRows->fetch()) {
+                    $totalSum += ($row['PRICE'] * $row['QUANTITY']);
+                }
+
+                // Обновляем сделку современным способом
+                $updateFields = [
+                    'OPPORTUNITY' => $totalSum,
+                    'CURRENCY_ID' => 'RUB',
+                    'UF_CRM_DEAL_CALCULATION_DATA' => json_encode([
                         'coefficient' => $coefficient,
-                        'total_deal_sum' => $totalSum,
-                        'volume' => $volume,
-                        'volume_price' => $volume_price,
-                        'sumvolume' => $sumvolume,
-                        'unit' => $unit, // Используем $unit вместо $requestData['unit']
-                    ]
+                        'base_price' => $price,
+                        'final_price' => $finalPrice
+                    ])
                 ];
-            } else {
-                $result['message'] = 'Товар добавлен, но не удалось обновить сумму сделки: ' .
-                    implode(', ', $updateResult->getErrorMessages());
-            }
-        } else {
-            $result['message'] = 'Ошибка при сохранении товара: ' . implode(', ', $addResult->getErrorMessages());
-        }
-    } catch (Exception $e) {
-        $result['message'] = 'Ошибка: ' . $e->getMessage();
-        error_log("Add product error: " . $e->getMessage());
-    }
 
-    echo json_encode($result);
-    break;
+                $updateResult = \Bitrix\Crm\DealTable::update($dealId, $updateFields);
+
+                if ($updateResult->isSuccess()) {
+                    $result = [
+                        'success' => true,
+                        'message' => 'Товар успешно добавлен в сделку',
+                        'data' => [
+                            'product_row_id' => $productRowId,
+                            'product_id' => $productId,
+                            'product_name' => $product['NAME'],
+                            'quantity' => $quantity,
+                            'base_price' => $price,
+                            'final_price' => $finalPrice,
+                            'coefficient' => $coefficient,
+                            'total_deal_sum' => $totalSum,
+                            'volume' => $volume,
+                            'volume_price' => $volume_price,
+                            'sumvolume' => $sumvolume,
+                            'unit' => $unit, // Используем $unit вместо $requestData['unit']
+                        ]
+                    ];
+                } else {
+                    $result['message'] = 'Товар добавлен, но не удалось обновить сумму сделки: ' .
+                        implode(', ', $updateResult->getErrorMessages());
+                }
+            } else {
+                $result['message'] = 'Ошибка при сохранении товара: ' . implode(', ', $addResult->getErrorMessages());
+            }
+        } catch (Exception $e) {
+            $result['message'] = 'Ошибка: ' . $e->getMessage();
+            error_log("Add product error: " . $e->getMessage());
+        }
+
+        echo json_encode($result);
+        break;
 
     case 'get_product_properties':
         $productId = (int)$request->get('product_id');

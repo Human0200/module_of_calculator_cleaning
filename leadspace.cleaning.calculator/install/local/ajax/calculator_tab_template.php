@@ -1297,107 +1297,112 @@
         }
     }
 
-    function initCopyProductButtons() {
-        console.log('Инициализируем кнопки копирования товаров');
+function initCopyProductButtons() {
+    console.log('Инициализируем кнопки копирования товаров');
 
-        const copyButtons = document.querySelectorAll('.copy-product-btn');
+    const copyButtons = document.querySelectorAll('.copy-product-btn');
 
-        copyButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                console.log('Кнопка копирования нажата');
+    copyButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            console.log('Кнопка копирования нажата');
 
-                // Получаем данные из data-атрибутов
-                const productId = this.getAttribute('data-product-id');
-                const productName = this.getAttribute('data-product-name');
-                const productPrice = this.getAttribute('data-product-price');
-                const productQuantity = this.getAttribute('data-product-quantity');
-                const productUnit = this.getAttribute('data-product-unit');
+            // Получаем данные из data-атрибутов
+            const productId = this.getAttribute('data-product-id');
+            const productName = this.getAttribute('data-product-name');
+            const productPrice = this.getAttribute('data-product-price');
+            const productQuantity = this.getAttribute('data-product-quantity');
+            const productUnit = this.getAttribute('data-product-unit');
 
-                console.log('Копируем товар:', {
-                    id: productId,
-                    name: productName,
-                    price: productPrice,
-                    quantity: productQuantity,
-                    unit: productUnit
-                });
+            console.log('Копируем товар:', {
+                id: productId,
+                name: productName,
+                price: productPrice,
+                quantity: productQuantity,
+                unit: productUnit
+            });
 
-                // Заполняем форму калькулятора данными товара
-                copyProductToCalculator({
-                    id: productId,
-                    name: productName,
-                    price: productPrice,
-                    quantity: productQuantity,
-                    unit: productUnit
-                });
-
-                // Показываем уведомление
-                if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
-                    BX.UI.Notification.Center.notify({
-                        content: `Товар "${productName}" скопирован в калькулятор`,
-                        position: "top-right",
-                        autoHideDelay: 3000
-                    });
-                } else {
-                    alert(`Товар "${productName}" скопирован в калькулятор`);
-                }
+            // Дублируем товар в сделке напрямую
+            duplicateProductInDeal({
+                id: productId,
+                name: productName,
+                price: productPrice,
+                quantity: productQuantity,
+                unit: productUnit
             });
         });
-    }
+    });
+}
 
-    function copyProductToCalculator(product) {
-        console.log('Заполняем калькулятор данными товара:', product);
+    function duplicateProductInDeal(product) {
+        console.log('Дублируем товар в сделке:', product);
 
-        // Заполняем объем работ
-        const workVolumeInput = document.getElementById('work_volume');
-        if (workVolumeInput) {
-            workVolumeInput.value = product.quantity;
+        if (!window.CURRENT_DEAL_ID || window.CURRENT_DEAL_ID <= 0) {
+            alert('Не удалось определить ID сделки');
+            return;
         }
 
-        // Устанавливаем единицу измерения
-        const workUnitSelect = document.getElementById('work_unit');
-        if (workUnitSelect) {
-            // Пытаемся найти соответствующую единицу измерения
-            const unitMapping = {
-                'шт': 'pcs',
-                'штук': 'pcs',
-                'м²': 'm2',
-                'кв.м': 'm2',
-                'м': 'm',
-                'кг': 'kg',
-                'л': 'l',
-                'час': 'hour',
-                'часов': 'hour',
-                'день': 'day',
-                'дней': 'day',
-                'м³': 'm3',
-                'упак': 'pack',
-                'услуга': 'service'
-            };
+        const dealId = window.CURRENT_DEAL_ID;
 
-            const mappedUnit = unitMapping[product.unit.toLowerCase()] || 'pcs';
-            workUnitSelect.value = mappedUnit;
-        }
-
-        // Добавляем информацию в особые пометки
-        const specialNotesTextarea = document.getElementById('special_notes');
-        if (specialNotesTextarea) {
-            const copyNote = `\nСкопировано из товаров сделки: ${product.name} (Цена: ${product.price} ₽)`;
-
-            if (specialNotesTextarea.value.trim()) {
-                specialNotesTextarea.value += copyNote;
-            } else {
-                specialNotesTextarea.value = `Скопировано из товаров сделки: ${product.name} (Цена: ${product.price} ₽)`;
-            }
-        }
-
-        // Прокручиваем к калькулятору
-        const calculatorSection = document.querySelector('.calculator-tab-wrapper');
-        if (calculatorSection) {
-            calculatorSection.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
+        // Показываем уведомление о начале процесса
+        if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
+            BX.UI.Notification.Center.notify({
+                content: `Копирование товара "${product.name}"...`,
+                position: "top-right",
+                autoHideDelay: 2000
             });
         }
+
+        // AJAX запрос для дублирования товара
+        BX.ajax({
+            method: 'POST',
+            url: '/local/ajax/calculator_ajax_handler.php',
+            data: {
+                action: 'duplicate_product_in_deal',
+                deal_id: dealId,
+                product_id: product.id,
+                product_name: product.name,
+                price: product.price,
+                quantity: product.quantity,
+                unit: product.unit,
+                sessid: BX.bitrix_sessid()
+            },
+            onsuccess: function(result) {
+                console.log('Результат дублирования:', result);
+
+                try {
+                    const data = JSON.parse(result);
+                    if (data.success) {
+                        // Успешное дублирование товара
+                        if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
+                            BX.UI.Notification.Center.notify({
+                                content: data.message,
+                                position: "top-right",
+                                autoHideDelay: 3000
+                            });
+                        } else {
+                            alert(data.message);
+                        }
+
+                        // Автоматически обновляем таблицу товаров
+                        setTimeout(() => {
+                            reloadDealProductsSection();
+                        }, 1000);
+
+                    } else {
+                        // Ошибка
+                        alert('Ошибка: ' + data.message);
+                    }
+                } catch (e) {
+                    console.error('Ошибка парсинга JSON:', e);
+                    console.log('Ответ сервера:', result);
+                    alert('Ошибка обработки ответа сервера');
+                }
+            },
+            onfailure: function(error) {
+                console.error('Ошибка AJAX:', error);
+                alert('Ошибка соединения с сервером');
+            }
+        });
     }
 
     // Запуск
