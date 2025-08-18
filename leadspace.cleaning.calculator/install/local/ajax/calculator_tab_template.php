@@ -86,8 +86,8 @@
                                                 style="flex: 1;">
                                             <select class="ui-ctl-element calculator-select"
                                                 id="work_unit"
-                                                style="width: 120px;">
-                                                <option value="">Выберите единицу</option>
+                                                style="width: 120px;pointer-events: none;">
+                                                <option value="">Выберите товар</option>
                                                 <option value="m2">м²</option>
                                                 <option value="m">м</option>
                                                 <option value="pcs">шт</option>
@@ -280,7 +280,7 @@
 </div>
 
 <script>
-   // console.log('JavaScript загружен!');
+    // console.log('JavaScript загружен!');
 
     // Глобальные переменные для хранения всех опций
     let allPollutionOptions = [];
@@ -289,7 +289,7 @@
 
     // Простая инициализация без сложной логики
     function initCalculator() {
-     //   console.log('Инициализация калькулятора');
+        //   console.log('Инициализация калькулятора');
 
         const objectTypeSelect = document.getElementById('object_type');
         const serviceTypeSelect = document.getElementById('service_type');
@@ -321,14 +321,14 @@
             return;
         }
 
-     //   console.log('Все селекты найдены, добавляем обработчики');
+        //   console.log('Все селекты найдены, добавляем обработчики');
 
         // Добавляем обработчики для селектов с множественным выбором
         addMultiSelectHandlers();
 
         // Обработчик для типа объекта
         objectTypeSelect.addEventListener('change', function() {
-           // console.log('CHANGE EVENT - Тип объекта! Выбрано:', this.value);
+            // console.log('CHANGE EVENT - Тип объекта! Выбрано:', this.value);
 
             // Сбрасываем зависимые селекты
             serviceTypeSelect.innerHTML = '<option value="">Сначала выберите тип объекта</option>';
@@ -367,7 +367,7 @@
                                     });
                                     serviceTypeSelect.innerHTML = html;
                                     serviceTypeSelect.disabled = false;
-                                   // console.log('Селект услуг заполнен!');
+                                    // console.log('Селект услуг заполнен!');
                                 } else {
                                     serviceTypeSelect.innerHTML = '<option value="">Услуги не найдены</option>';
                                 }
@@ -383,7 +383,7 @@
 
         // Обработчик для вида услуги
         serviceTypeSelect.addEventListener('change', function() {
-           // console.log('CHANGE EVENT - Вид услуги! Выбрано:', this.value);
+            // console.log('CHANGE EVENT - Вид услуги! Выбрано:', this.value);
 
             // Сбрасываем зависимые селекты
             workTypeSelect.innerHTML = '<option value="">Сначала выберите вид услуги</option>';
@@ -503,6 +503,8 @@
 
                 // Загружаем свойства товара и автоматически проставляем степени загрязнения и параметры
                 loadProductPropertiesAndSetSelects(productId);
+
+                loadProductMetric(productId);
             } else {
                 // Отключаем селекты если товар не выбран
                 disablePollutionAndParameters();
@@ -561,11 +563,11 @@
 
                 //console.log('Отправляем данные на расчет:', formData);
                 const coefficient = parseFloat(document.getElementById('coefficient').innerText) + parseFloat(document.getElementById('coefficient_parameters').innerText) || 1.0;
-               // console.log('Коэффициент:', coefficient);
+                // console.log('Коэффициент:', coefficient);
                 volume_price = parseFloat(document.getElementById('additional_cost').innerText);
                 volume = document.getElementById('work_volume').value;
                 work_unit = document.getElementById('work_unit').value;
-              //  console.log('Объем работ:', volume, 'Единица измерения:', work_unit, 'Цена за единицу:', volume_price);
+                //  console.log('Объем работ:', volume, 'Единица измерения:', work_unit, 'Цена за единицу:', volume_price);
                 // AJAX запрос
                 BX.ajax({
                     method: 'POST',
@@ -589,7 +591,7 @@
                         sessid: BX.bitrix_sessid()
                     },
                     onsuccess: function(result) {
-                       // console.log('Результат расчета:', result);
+                        // console.log('Результат расчета:', result);
 
                         try {
                             const data = JSON.parse(result);
@@ -619,7 +621,7 @@
                             }
                         } catch (e) {
                             console.error('Ошибка парсинга JSON:', e);
-                           // console.log('Ответ сервера:', result);
+                            // console.log('Ответ сервера:', result);
                             alert('Ошибка обработки ответа сервера');
                         }
                     },
@@ -635,18 +637,196 @@
         initCopyProductButtons();
     }
 
+function loadProductMetric(productId) {
+    //console.log('Загружаем метрику товара:', productId);
+
+    const xhr = new XMLHttpRequest();
+    const url = `/local/ajax/calculator_ajax_handler.php?action=get_product_metric&product_id=${productId}&sessid=<?= bitrix_sessid() ?>`;
+
+    //console.log('AJAX URL для метрики товара:', url);
+
+    xhr.open('GET', url, true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            console.log('AJAX ответ метрика товара:', xhr.status, xhr.responseText);
+
+            if (xhr.status === 200) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                   // console.log('Получена метрика товара:', data);
+
+                    if (data.success && data.metric_name) {
+                        // Устанавливаем метрику в селект единиц измерения
+                        setWorkUnit(data.metric_name);
+                        
+                       // console.log('Автоматически установлена единица измерения:', data.metric);
+
+                        // Показываем уведомление
+                        if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
+                            BX.UI.Notification.Center.notify({
+                                content: `Установлена единица измерения: ${data.metric_name || data.metric}`,
+                                position: "top-right",
+                                autoHideDelay: 2000
+                            });
+                        }
+                    } else {
+                       // console.log('Метрика товара не найдена или пуста');
+                        // Устанавливаем единицу по умолчанию
+                        setWorkUnit('pcs'); // штуки по умолчанию
+                    }
+                } catch (e) {
+                    console.error('Ошибка JSON метрика товара:', e);
+                    // В случае ошибки устанавливаем единицу по умолчанию
+                    setWorkUnit('pcs');
+                }
+            } else {
+                console.error('Ошибка загрузки метрики товара:', xhr.status);
+                // В случае ошибки устанавливаем единицу по умолчанию
+                setWorkUnit('pcs');
+            }
+        }
+    };
+    xhr.send();
+}
+
+    function setWorkUnit(metric) {
+   // console.log('Устанавливаем единицу измерения:', metric);
+    
+    const workUnitSelect = document.getElementById('work_unit');
+    if (!workUnitSelect) {
+        console.error('Селект единиц измерения не найден!');
+        return;
+    }
+
+    // Маппинг различных вариантов метрик на значения селекта
+    const metricMapping = {
+        // Штуки
+        'шт': 'pcs',
+        'штук': 'pcs',
+        'штука': 'pcs',
+        'pcs': 'pcs',
+        '1': 'pcs', // ID меры "штука"
+        '796': 'pcs', // Код единицы измерения "штука"
+        
+        // Метры  
+        'м': 'm',
+        'метр': 'm',
+        'метры': 'm',
+        'm': 'm',
+        '2': 'm', // ID меры "метр"
+        '006': 'm', // Код единицы измерения "метр"
+        
+        // Сантиметры
+        'см': 'm', // Приводим к метрам для упрощения
+        'сантиметр': 'm',
+        '3': 'm', // ID меры "сантиметр"
+        
+        // Миллиметры
+        'мм': 'm', // Приводим к метрам для упрощения
+        'миллиметр': 'm',
+        '4': 'm', // ID меры "миллиметр"
+        
+        // Килограммы
+        'кг': 'kg',
+        'килограмм': 'kg',
+        'kg': 'kg',
+        '5': 'kg', // ID меры "килограмм"
+        '166': 'kg', // Код единицы измерения "килограмм"
+        
+        // Граммы
+        'г': 'kg', // Приводим к килограммам для упрощения
+        'грамм': 'kg',
+        '6': 'kg', // ID меры "грамм"
+        
+        // Литры
+        'л': 'l',
+        'литр': 'l',
+        'литры': 'l',
+        'l': 'l',
+        '7': 'l', // ID меры "литр"
+        '112': 'l', // Код единицы измерения "литр"
+        
+        // Квадратные метры
+        'м²': 'm2',
+        'кв.м': 'm2',
+        'кв м': 'm2',
+        'м2': 'm2',
+        'm2': 'm2',
+        '55': 'm2', // ID меры "квадратный метр"
+        '055': 'm2', // Код единицы измерения "квадратный метр"
+        
+        // Кубические метры
+        'м³': 'm3',
+        'куб.м': 'm3',
+        'куб м': 'm3',
+        'м3': 'm3',
+        'm3': 'm3',
+        '113': 'm3', // Код и ID единицы измерения "кубический метр"
+        
+        // Часы
+        'час': 'hour',
+        'часы': 'hour',
+        'часов': 'hour',
+        'hour': 'hour',
+        '356': 'hour', // Код единицы измерения "час"
+        
+        // Дни
+        'день': 'day',
+        'дни': 'day',
+        'дней': 'day',
+        'day': 'day',
+        '359': 'day', // Код единицы измерения "день"
+        
+        // Упаковки
+        'упак': 'pack',
+        'упаковка': 'pack',
+        'pack': 'pack',
+        '778': 'pack', // Код единицы измерения "упаковка"
+        
+        // Услуги
+        'услуга': 'service',
+        'услуги': 'service',
+        'service': 'service'
+    };
+
+    // Приводим к нижнему регистру для поиска
+    const normalizedMetric = String(metric).toLowerCase().trim();
+    const mappedUnit = metricMapping[normalizedMetric] || 'pcs'; // По умолчанию штуки
+    
+   // console.log(`Маппинг: "${metric}" -> "${normalizedMetric}" -> "${mappedUnit}"`);
+    
+    // Устанавливаем значение в селект
+    workUnitSelect.value = mappedUnit;
+    
+    // Вызываем событие change для обновления зависимых элементов
+    workUnitSelect.dispatchEvent(new Event('change'));
+    
+   // console.log('Единица измерения установлена:', mappedUnit);
+}
+
+// Функция для сброса единицы измерения
+function resetWorkUnit() {
+   // console.log('Сбрасываем единицу измерения');
+    
+    const workUnitSelect = document.getElementById('work_unit');
+    if (workUnitSelect) {
+        workUnitSelect.value = '';
+        workUnitSelect.dispatchEvent(new Event('change'));
+    }
+}
+
     function calculateWorkVolumeSum() {
         const workVolume = document.getElementById('work_volume').value;
         const workUnit = document.getElementById('work_unit').value;
         const workDetails = document.getElementById('work_details').value;
 
         if (!workVolume || workVolume <= 0) {
-           // console.log('Объем работ не указан');
+            // console.log('Объем работ не указан');
             document.getElementById('additional_cost').innerText = '0.00';
             return;
         }
 
-       // console.log('Ищем цену для объема работ:', workVolume);
+        // console.log('Ищем цену для объема работ:', workVolume);
 
         // AJAX запрос для поиска цены
         const xhr = new XMLHttpRequest();
@@ -662,15 +842,15 @@
 
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
-               // console.log('AJAX ответ поиска цены:', xhr.status, xhr.responseText);
+                // console.log('AJAX ответ поиска цены:', xhr.status, xhr.responseText);
 
                 if (xhr.status === 200) {
                     try {
                         const data = JSON.parse(xhr.responseText);
                         if (data.success) {
-                           // console.log('=== НАЙДЕННАЯ ЦЕНА ===');
-                          //  console.log('Цена за единицу:', data.unit_price);
-                          //  console.log('Найденный диапазон:', data.found_item);
+                            // console.log('=== НАЙДЕННАЯ ЦЕНА ===');
+                            //  console.log('Цена за единицу:', data.unit_price);
+                            //  console.log('Найденный диапазон:', data.found_item);
 
                             // Показываем найденную цену пользователю
                             if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
@@ -784,7 +964,7 @@
                             // Переинициализируем кнопки копирования
                             initCopyProductButtons();
 
-                           // console.log('Раздел товаров успешно обновлен');
+                            // console.log('Раздел товаров успешно обновлен');
 
                             // Показываем уведомление об успешном обновлении
                             if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
@@ -863,7 +1043,7 @@
 
     // Функция сохранения всех опций при инициализации
     function saveAllOptions() {
-       // console.log('Сохраняем все опции селектов');
+        // console.log('Сохраняем все опции селектов');
 
         const pollutionSelect = document.getElementById('pollution_degree');
         const parametersSelect = document.getElementById('parameters');
@@ -873,7 +1053,7 @@
                 value: option.value,
                 text: option.text
             }));
-         //   console.log('Сохранены опции pollution_degree:', allPollutionOptions.length);
+            //   console.log('Сохранены опции pollution_degree:', allPollutionOptions.length);
         }
 
         if (parametersSelect) {
@@ -881,7 +1061,7 @@
                 value: option.value,
                 text: option.text
             }));
-           // console.log('Сохранены опции parameters:', allParametersOptions.length);
+            // console.log('Сохранены опции parameters:', allParametersOptions.length);
         }
     }
 
@@ -894,43 +1074,43 @@
 
         if (pollutionSelect) {
             pollutionSelect.disabled = false;
-           // console.log('Селект pollution_degree включен');
+            // console.log('Селект pollution_degree включен');
         }
 
         if (parametersSelect) {
             parametersSelect.disabled = false;
-          //  console.log('Селект parameters включен');
+            //  console.log('Селект parameters включен');
         }
     }
 
     // Функция отключения селектов Чек-бокс и Параметры
     function disablePollutionAndParameters() {
-       // console.log('Отключаем селекты Чек-бокс и Параметры');
+        // console.log('Отключаем селекты Чек-бокс и Параметры');
 
         const pollutionSelect = document.getElementById('pollution_degree');
         const parametersSelect = document.getElementById('parameters');
 
         if (pollutionSelect) {
             pollutionSelect.disabled = true;
-         //   console.log('Селект pollution_degree отключен');
+            //   console.log('Селект pollution_degree отключен');
         }
 
         if (parametersSelect) {
             parametersSelect.disabled = true;
-          //  console.log('Селект parameters отключен');
+            //  console.log('Селект parameters отключен');
         }
     }
 
     // Функция добавления обработчиков для множественного выбора
     function addMultiSelectHandlers() {
-       // console.log('Добавляем обработчики для множественного выбора');
+        // console.log('Добавляем обработчики для множественного выбора');
 
         const pollutionSelect = document.getElementById('pollution_degree');
         const parametersSelect = document.getElementById('parameters');
 
         if (pollutionSelect) {
             pollutionSelect.addEventListener('change', function() {
-              //  console.log('Изменились степени загрязнения');
+                //  console.log('Изменились степени загрязнения');
                 //hideUnselectedOptions('pollution_degree');
 
                 // НОВАЯ ФУНКЦИЯ: расчет суммы при изменении чек-боксов
@@ -940,7 +1120,7 @@
 
         if (parametersSelect) {
             parametersSelect.addEventListener('change', function() {
-               // console.log('Изменились параметры');
+                // console.log('Изменились параметры');
                 calculateParametersSum();
                 //hideUnselectedOptions('parameters');
 
@@ -955,12 +1135,12 @@
         const pollutionValues = getPollutionDegreeValues();
 
         if (pollutionValues.length === 0) {
-           // console.log('Степени загрязнения не выбраны');
+            // console.log('Степени загрязнения не выбраны');
             document.getElementById('coefficient').innerText = '0.0';
             return;
         }
 
-       // console.log('Рассчитываем сумму для степеней загрязнения:', pollutionValues);
+        // console.log('Рассчитываем сумму для степеней загрязнения:', pollutionValues);
 
         // AJAX запрос для расчета суммы
         const xhr = new XMLHttpRequest();
@@ -974,16 +1154,16 @@
 
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
-               // console.log('AJAX ответ расчет суммы загрязнения:', xhr.status, xhr.responseText);
+                // console.log('AJAX ответ расчет суммы загрязнения:', xhr.status, xhr.responseText);
 
                 if (xhr.status === 200) {
                     try {
                         const data = JSON.parse(xhr.responseText);
                         if (data.success) {
-                        //    console.log('=== РЕЗУЛЬТАТ РАСЧЕТА СТЕПЕНЕЙ ЗАГРЯЗНЕНИЯ ===');
-                        //    console.log('Общая сумма:', data.total_sum);
-                        //    console.log('Обработанные элементы:', data.processed_items);
-                        //    console.log('Поле:', data.field_name);
+                            //    console.log('=== РЕЗУЛЬТАТ РАСЧЕТА СТЕПЕНЕЙ ЗАГРЯЗНЕНИЯ ===');
+                            //    console.log('Общая сумма:', data.total_sum);
+                            //    console.log('Обработанные элементы:', data.processed_items);
+                            //    console.log('Поле:', data.field_name);
 
                             // Показываем результат пользователю
                             if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
@@ -1012,12 +1192,12 @@
         const parametersValues = getParametersValues();
 
         if (parametersValues.length === 0) {
-           // console.log('Параметры не выбраны');
+            // console.log('Параметры не выбраны');
             document.getElementById('coefficient_parameters').innerText = '0.0';
             return;
         }
 
-      //  console.log('Рассчитываем сумму для параметров:', parametersValues);
+        //  console.log('Рассчитываем сумму для параметров:', parametersValues);
 
         // AJAX запрос для расчета суммы параметров (если нужно)
         const xhr = new XMLHttpRequest();
@@ -1031,15 +1211,15 @@
 
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
-              //  console.log('AJAX ответ расчет суммы параметров:', xhr.status, xhr.responseText);
+                //  console.log('AJAX ответ расчет суммы параметров:', xhr.status, xhr.responseText);
 
                 if (xhr.status === 200) {
                     try {
                         const data = JSON.parse(xhr.responseText);
                         if (data.success) {
-                           // console.log('=== РЕЗУЛЬТАТ РАСЧЕТА ПАРАМЕТРОВ ===');
-                         //   console.log('Общая сумма параметров:', data.total_sum);
-                        //    console.log('Обработанные элементы:', data.processed_items);
+                            // console.log('=== РЕЗУЛЬТАТ РАСЧЕТА ПАРАМЕТРОВ ===');
+                            //   console.log('Общая сумма параметров:', data.total_sum);
+                            //    console.log('Обработанные элементы:', data.processed_items);
 
                             // Показываем результат пользователю
                             if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
@@ -1065,13 +1245,13 @@
 
     // Функция скрытия невыбранных опций
     function hideUnselectedOptions(selectId) {
-      //  console.log('Скрываем невыбранные опции для:', selectId);
+        //  console.log('Скрываем невыбранные опции для:', selectId);
 
         const select = document.getElementById(selectId);
         if (!select) return;
 
         const selectedValues = Array.from(select.selectedOptions).map(option => option.value);
-       // console.log('Выбранные значения:', selectedValues);
+        // console.log('Выбранные значения:', selectedValues);
 
         // Если ничего не выбрано, показываем все опции
         if (selectedValues.length === 0) {
@@ -1093,7 +1273,7 @@
 
     // Функция восстановления всех опций
     function restoreAllOptions(selectId) {
-       // console.log('Восстанавливаем все опции для:', selectId);
+        // console.log('Восстанавливаем все опции для:', selectId);
 
         const select = document.getElementById(selectId);
         if (!select) return;
@@ -1105,37 +1285,37 @@
 
     // Функция загрузки свойств товара и установки степеней загрязнения и параметров
     function loadProductPropertiesAndSetSelects(productId) {
-       // console.log('Загружаем свойства товара:', productId);
+        // console.log('Загружаем свойства товара:', productId);
 
         const xhr = new XMLHttpRequest();
         const url = `/local/ajax/calculator_ajax_handler.php?action=get_product_properties&product_id=${productId}&sessid=<?= bitrix_sessid() ?>`;
 
-       //('AJAX URL для свойств товара:', url);
+        //('AJAX URL для свойств товара:', url);
 
         xhr.open('GET', url, true);
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
-              //  console.log('AJAX ответ свойства товара:', xhr.status, xhr.responseText);
+                //  console.log('AJAX ответ свойства товара:', xhr.status, xhr.responseText);
 
                 if (xhr.status === 200) {
                     try {
                         const data = JSON.parse(xhr.responseText);
-                       // console.log('Получены свойства товара:', data);
+                        // console.log('Получены свойства товара:', data);
 
                         if (data.success) {
                             // Получаем разные свойства
                             const pollutionProperties = data.pollution_properties || [];
                             const parameterProperties = data.parameter_properties || [];
 
-                          //  console.log('Степени загрязнения:', pollutionProperties);
-                          //  console.log('Параметры:', parameterProperties);
+                            //  console.log('Степени загрязнения:', pollutionProperties);
+                            //  console.log('Параметры:', parameterProperties);
 
                             // Проставляем степени загрязнения
                             if (pollutionProperties.length > 0) {
                                 setPollutionDegreeValues(pollutionProperties);
                                 // Скрываем невыбранные опции
                                 hideUnselectedOptions('pollution_degree');
-                              //  console.log('Автоматически проставлены степени загрязнения:', pollutionProperties);
+                                //  console.log('Автоматически проставлены степени загрязнения:', pollutionProperties);
                             }
 
                             // Проставляем параметры
@@ -1143,7 +1323,7 @@
                                 setParametersValues(parameterProperties);
                                 // Скрываем невыбранные опции
                                 hideUnselectedOptions('parameters');
-                              //  console.log('Автоматически проставлены параметры:', parameterProperties);
+                                //  console.log('Автоматически проставлены параметры:', parameterProperties);
                             }
 
                             // Показываем уведомление только если что-то проставилось
@@ -1156,7 +1336,7 @@
                                     });
                                 }
                             } else {
-                               // console.log('Для данного товара нет автоматических настроек');
+                                // console.log('Для данного товара нет автоматических настроек');
                             }
                         }
                     } catch (e) {
@@ -1171,7 +1351,7 @@
     }
 
     function setPollutionDegreeValues(values) {
-      //  console.log('Устанавливаем степени загрязнения:', values);
+        //  console.log('Устанавливаем степени загрязнения:', values);
 
         const pollutionSelect = document.getElementById('pollution_degree');
         if (!pollutionSelect) {
@@ -1184,7 +1364,7 @@
             Array.from(pollutionSelect.options).forEach(option => {
                 if (values.includes(option.value)) {
                     option.selected = true;
-                  //  console.log('Опция выбрана:', option.value, option.text);
+                    //  console.log('Опция выбрана:', option.value, option.text);
                 }
             });
 
@@ -1195,7 +1375,7 @@
                     option.selected = false;
                 });
 
-               // console.log('Все опции сняты с выделения');
+                // console.log('Все опции сняты с выделения');
                 pollutionSelect.dispatchEvent(new Event('change'));
                 resolve();
             });
@@ -1203,7 +1383,7 @@
     }
 
     function setParametersValues(values) {
-      //  console.log('Устанавливаем параметры:', values);
+        //  console.log('Устанавливаем параметры:', values);
 
         const parametersSelect = document.getElementById('parameters');
         if (!parametersSelect) {
@@ -1216,7 +1396,7 @@
             Array.from(parametersSelect.options).forEach(option => {
                 if (values.includes(option.value)) {
                     option.selected = true;
-                  //  console.log('Параметр выбран:', option.value, option.text);
+                    //  console.log('Параметр выбран:', option.value, option.text);
                 }
             });
 
@@ -1227,7 +1407,7 @@
                     option.selected = false;
                 });
 
-              //  console.log('Все параметры сняты с выделения');
+                //  console.log('Все параметры сняты с выделения');
                 parametersSelect.dispatchEvent(new Event('change'));
                 resolve();
             });
@@ -1235,7 +1415,7 @@
     }
 
     function resetPollutionDegree() {
-     //   console.log('Сбрасываем степени загрязнения');
+        //   console.log('Сбрасываем степени загрязнения');
 
         const pollutionSelect = document.getElementById('pollution_degree');
         if (pollutionSelect) {
@@ -1249,7 +1429,7 @@
     }
 
     function resetParameters() {
-       // console.log('Сбрасываем параметры');
+        // console.log('Сбрасываем параметры');
 
         const parametersSelect = document.getElementById('parameters');
         if (parametersSelect) {
@@ -1295,36 +1475,36 @@
         }
     }
 
-function initCopyProductButtons() {
-  //  console.log('Инициализируем кнопки копирования товаров');
+    function initCopyProductButtons() {
+        //  console.log('Инициализируем кнопки копирования товаров');
 
-    const copyButtons = document.querySelectorAll('.copy-product-btn');
+        const copyButtons = document.querySelectorAll('.copy-product-btn');
 
-    copyButtons.forEach(button => {
-        button.addEventListener('click', function() {
-         //   console.log('Кнопка копирования нажата');
+        copyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                //   console.log('Кнопка копирования нажата');
 
-            // Получаем данные из data-атрибутов
-            const productId = this.getAttribute('data-product-id');
-            const productName = this.getAttribute('data-product-name');
-            const productPrice = this.getAttribute('data-product-price');
-            const productQuantity = this.getAttribute('data-product-quantity');
-            const productUnit = this.getAttribute('data-product-unit');
+                // Получаем данные из data-атрибутов
+                const productId = this.getAttribute('data-product-id');
+                const productName = this.getAttribute('data-product-name');
+                const productPrice = this.getAttribute('data-product-price');
+                const productQuantity = this.getAttribute('data-product-quantity');
+                const productUnit = this.getAttribute('data-product-unit');
 
-            // Дублируем товар в сделке напрямую
-            duplicateProductInDeal({
-                id: productId,
-                name: productName,
-                price: productPrice,
-                quantity: productQuantity,
-                unit: productUnit
+                // Дублируем товар в сделке напрямую
+                duplicateProductInDeal({
+                    id: productId,
+                    name: productName,
+                    price: productPrice,
+                    quantity: productQuantity,
+                    unit: productUnit
+                });
             });
         });
-    });
-}
+    }
 
     function duplicateProductInDeal(product) {
-      //  console.log('Дублируем товар в сделке:', product);
+        //  console.log('Дублируем товар в сделке:', product);
 
         if (!window.CURRENT_DEAL_ID || window.CURRENT_DEAL_ID <= 0) {
             alert('Не удалось определить ID сделки');
@@ -1357,7 +1537,7 @@ function initCopyProductButtons() {
                 sessid: BX.bitrix_sessid()
             },
             onsuccess: function(result) {
-              //  console.log('Результат дублирования:', result);
+                //  console.log('Результат дублирования:', result);
 
                 try {
                     const data = JSON.parse(result);
@@ -1384,7 +1564,7 @@ function initCopyProductButtons() {
                     }
                 } catch (e) {
                     console.error('Ошибка парсинга JSON:', e);
-                   // console.log('Ответ сервера:', result);
+                    // console.log('Ответ сервера:', result);
                     alert('Ошибка обработки ответа сервера');
                 }
             },

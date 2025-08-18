@@ -338,6 +338,135 @@ switch ($action) {
         echo json_encode($workTypes);
         break;
 
+case 'get_product_metric':
+    $productId = (int)$request->get('product_id');
+    
+    if ($productId <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Не указан ID товара']);
+        return;
+    }
+
+    try {
+        if (!Loader::includeModule('iblock') || !Loader::includeModule('catalog')) {
+            throw new Exception('Не удалось подключить необходимые модули');
+        }
+
+        // Дополнительная функция для определения типа меры
+        function getMeasureType($measureId) {
+            $types = [
+                1 => 'шт',
+                2 => 'м',
+                3 => 'см', 
+                4 => 'мм',
+                5 => 'кг',
+                6 => 'г',
+                7 => 'л',
+                55 => 'м²', // Квадратный метр
+                113 => 'м³', // Кубический метр
+                166 => 'кг',
+                356 => 'час',
+                359 => 'день',
+                778 => 'упак',
+                796 => 'шт'
+            ];
+            
+            return $types[$measureId] ?? 'шт';
+        }
+
+        // Получаем основную информацию о товаре из каталога
+        $product = \Bitrix\Catalog\ProductTable::getById($productId)->fetch();
+        
+        if (!$product) {
+            throw new Exception("Товар с ID {$productId} не найден");
+        }
+        
+        // ПРОВЕРЯЕМ СВОЙСТВО ID 75 - если заполнено, то всегда м²
+        $catalogIblockId = 14; // ID каталога
+        $property75 = null;
+        
+        $dbProperty = CIBlockElement::GetProperty(
+            $catalogIblockId,
+            $productId,
+            [],
+            ['ID' => 75]
+        );
+        
+        if ($prop = $dbProperty->Fetch()) {
+            if (!empty($prop['VALUE'])) {
+                $property75 = $prop['VALUE'];
+                error_log("Calculator: found property 75 with value: {$property75}");
+            }
+        }
+        
+        // Если свойство 75 заполнено - всегда м²
+        if (!empty($property75)) {
+            $measureType = 'm2';
+            $measureName = 'м²';
+            error_log("Calculator: property 75 is filled, forcing m2");
+        } else {
+            // Получаем меру товара стандартным способом
+            $measure = \CCatalogProduct::GetByID($productId);
+            
+            // Если есть конкретная мера, получаем её название
+            $measureName = '';
+            $measureType = 'шт'; // По умолчанию
+            
+            if ($measure && $measure['MEASURE'] > 0) {
+                $measureInfo = \CCatalogMeasure::getList(
+                    [],
+                    ['ID' => $measure['MEASURE']],
+                    false,
+                    false,
+                    ['ID', 'SYMBOL_RUS']
+                )->Fetch();
+                
+                if ($measureInfo) {
+                    $measureName = $measureInfo['SYMBOL_RUS'] ?? '';
+                    $measureType = getMeasureType($measure['MEASURE']);
+                }
+            }
+        }
+        
+        // Формируем результат
+        $measureId = 55; // ID для м² по умолчанию
+        if (!empty($property75)) {
+            // Если свойство 75 заполнено - всегда м²
+            $measureId = 55; // ID для квадратных метров
+        } else {
+            $measureId = $measure['MEASURE'] ?? 1;
+        }
+        
+        $result = [
+            'PRODUCT_ID' => $productId,
+            'MEASURE' => [
+                'ID' => $measureId,
+                'NAME' => $measureName ?: $measureType,
+                'TYPE' => $measureType
+            ],
+            'PROPERTY_75' => $property75 // Для отладки
+        ];
+
+        echo json_encode([
+            'success' => true,
+            'metric' => $measureType,
+            'metric_name' => $measureName ?: $measureType,
+            'product_id' => $productId,
+            'measure_id' => $measureId,
+            'property_75_value' => $property75,
+            'forced_m2' => !empty($property75),
+            'debug_info' => $result
+        ]);
+        
+    } catch (Exception $e) {
+        error_log("Calculator get product metric error: " . $e->getMessage());
+        echo json_encode([
+            'success' => false, 
+            'message' => 'Ошибка: ' . $e->getMessage(),
+            'product_id' => $productId
+        ]);
+    }
+    break;
+
     case 'get_work_details':
         $workDetails = [];
         if ($parentId > 0) {

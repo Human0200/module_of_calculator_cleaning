@@ -18,7 +18,7 @@ class CalculatorTab
 
     public static function onEntityDetailsTabsInitialized(\Bitrix\Main\Event $event)
     {
-        file_put_contents(__DIR__ . '/log.txt', print_r($event->getParameters(), true));
+       // file_put_contents(__DIR__ . '/log.txt', print_r($event->getParameters(), true));
         $entityID = $event->getParameter('entityID');
         $entityTypeID = $event->getParameter('entityTypeID');
         $tabs = $event->getParameter('tabs');

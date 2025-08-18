@@ -1,0 +1,25 @@
+<?$APPLICATION->IncludeComponent(
+	"leadspace:yandexreviewsslider",
+	".default",
+	Array(
+		"AUTOPLAY" => "N",
+		"AUTOPLAY_SPEED" => "2000",
+		"CACHE_NOTES" => "",
+		"CACHE_TIME" => "0",
+		"CACHE_TYPE" => "N",
+		"COLOR_BUTTON" => "#FFFFFF",
+		"COLOR_BUTTONS" => "#FF0000",
+		"COLOR_BUTTON_TEXT" => "#262626",
+		"COMPONENT_TEMPLATE" => ".default",
+		"NEWS_SORT" => "DEFAULT",
+		"NO_JQUERY" => "N",
+		"PAGER_COUNT" => "100",
+		"SHOW_COUNT" => "SHOW_COUNT_REVIEWS",
+		"SLIDE_DESCKTOP_COUNT" => "2",
+		"SLIDE_MOBILE_COUNT" => "1"
+	),
+false,
+Array(
+	'ACTIVE_COMPONENT' => 'Y'
+)
+);?>
