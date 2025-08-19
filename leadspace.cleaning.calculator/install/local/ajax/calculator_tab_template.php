@@ -437,7 +437,7 @@
 
         // Обработчик для вида работ
         workTypeSelect.addEventListener('change', function() {
-            //console.log('CHANGE EVENT - Вид работ! Выбрано:', this.value);
+            console.log('CHANGE EVENT - Вид работ! Выбрано:', this.value);
 
             // Сбрасываем зависимый селект
             workDetailsSelect.innerHTML = '<option value="">Сначала выберите вид работ</option>';
@@ -459,7 +459,7 @@
                 xhr.open('GET', url, true);
                 xhr.onreadystatechange = function() {
                     if (xhr.readyState === 4) {
-                        //console.log('AJAX ответ товары:', xhr.status, xhr.responseText);
+                        console.log('AJAX ответ товары:', xhr.status, xhr.responseText);
 
                         if (xhr.status === 200) {
                             try {

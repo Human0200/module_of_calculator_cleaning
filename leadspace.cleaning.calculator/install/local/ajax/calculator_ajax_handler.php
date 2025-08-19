@@ -467,39 +467,44 @@ case 'get_product_metric':
     }
     break;
 
-    case 'get_work_details':
-        $workDetails = [];
-        if ($parentId > 0) {
-            try {
-                if (!Loader::includeModule('iblock')) {
-                    throw new \Exception('Module iblock not installed');
-                }
-
-                // Получаем ТОВАРЫ (ElementTable), а не подразделы (SectionTable)
-                $elements = \Bitrix\Iblock\ElementTable::getList([
-                    'select' => ['ID', 'NAME', 'CODE'],
-                    'filter' => [
-                        'IBLOCK_ID' => $catalogIblockId,
-                        'IBLOCK_SECTION_ID' => $parentId, // Фильтр по разделу
-                        'ACTIVE' => 'Y'
-                    ],
-                    'order' => ['SORT' => 'ASC', 'NAME' => 'ASC']
-                ]);
-
-                while ($element = $elements->fetch()) {
-                    $workDetails[] = [
-                        'ID' => $element['ID'],
-                        'NAME' => $element['NAME'],
-                        'CODE' => $element['CODE']
-                    ];
-                }
-            } catch (\Exception $e) {
-                echo json_encode(['error' => $e->getMessage()]);
-                return;
+case 'get_work_details':
+    $workDetails = [];
+    if ($parentId > 0) {
+        try {
+            if (!CModule::IncludeModule('iblock')) {
+                throw new \Exception('Module iblock not installed');
             }
+
+            // Получаем товары через CIBlockElement::GetList
+            $elements = CIBlockElement::GetList(
+                [
+                    'SORT' => 'ASC',
+                    'NAME' => 'ASC'
+                ],
+                [
+                    'IBLOCK_ID' => $catalogIblockId,
+                    'SECTION_ID' => $parentId, // Фильтр по разделу
+                    'ACTIVE' => 'Y'
+                ],
+                false,
+                false,
+                ['ID', 'NAME', 'CODE']
+            );
+
+            while ($element = $elements->Fetch()) {
+                $workDetails[] = [
+                    'ID' => $element['ID'],
+                    'NAME' => $element['NAME'],
+                    'CODE' => $element['CODE']
+                ];
+            }
+        } catch (\Exception $e) {
+            echo json_encode(['error' => $e->getMessage()]);
+            return;
         }
-        echo json_encode($workDetails);
-        break;
+    }
+    echo json_encode($workDetails);
+    break;
 
     case 'get_pollution_degrees':
         $pollutionDegrees = [];
