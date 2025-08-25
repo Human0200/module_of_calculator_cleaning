@@ -348,7 +348,7 @@
                     work_details: document.getElementById('work_details').value,
                     pollution_degree: pollutionDegreeValues,
                     parameters: parametersValues,
-                    work_volume: document.getElementById('work_volume').value,
+                    work_volume: document.getElementById('work_volume').value || 0,
                     work_unit: document.getElementById('work_unit').value,
                 };
 
@@ -371,8 +371,8 @@
                 }
 
                 //console.log('Отправляем данные на расчет:', formData);
-                const coefficient = parseFloat(document.getElementById('coefficient').innerText) + parseFloat(document.getElementById('coefficient_parameters').innerText) || 1.0;
-                // console.log('Коэффициент:', coefficient);
+                const coefficient = parseFloat(document.getElementById('coefficient').innerText || 0) + parseFloat(document.getElementById('coefficient_parameters').innerText) || 1.0;
+                 console.log('Коэффициент:', coefficient);
                 volume_price = parseFloat(document.getElementById('additional_cost').innerText);
                 volume = document.getElementById('work_volume').value;
                 work_unit = document.getElementById('work_unit').value;
@@ -400,7 +400,7 @@
                         sessid: BX.bitrix_sessid()
                     },
                     onsuccess: function(result) {
-                        // console.log('Результат расчета:', result);
+                         console.log('Результат расчета:', result);
 
                         try {
                             const data = JSON.parse(result);
@@ -1256,72 +1256,102 @@ function restoreAllOptions(selectId) {
     }
 }
 
-    // Функция загрузки свойств товара и установки степеней загрязнения и параметров
-    function loadProductPropertiesAndSetSelects(productId) {
-        // console.log('Загружаем свойства товара:', productId);
+function showEmptySelect(selectId) {
+    console.log('Показываем пустой селект для:', selectId);
 
-        const xhr = new XMLHttpRequest();
-        const url = `/local/ajax/calculator_ajax_handler.php?action=get_product_properties&product_id=${productId}&sessid=<?= bitrix_sessid() ?>`;
+    const $select = jQuery('#' + selectId);
+    if (!$select.length) return;
 
-        //('AJAX URL для свойств товара:', url);
-
-        xhr.open('GET', url, true);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                //  console.log('AJAX ответ свойства товара:', xhr.status, xhr.responseText);
-
-                if (xhr.status === 200) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        // console.log('Получены свойства товара:', data);
-
-                        if (data.success) {
-                            // Получаем разные свойства
-                            const pollutionProperties = data.pollution_properties || [];
-                            const parameterProperties = data.parameter_properties || [];
-
-                            //  console.log('Степени загрязнения:', pollutionProperties);
-                            //  console.log('Параметры:', parameterProperties);
-
-                            // Проставляем степени загрязнения
-                            if (pollutionProperties.length > 0) {
-                                setPollutionDegreeValues(pollutionProperties);
-                                // Скрываем невыбранные опции
-                                hideUnselectedOptions('pollution_degree');
-                                //  console.log('Автоматически проставлены степени загрязнения:', pollutionProperties);
-                            }
-
-                            // Проставляем параметры
-                            if (parameterProperties.length > 0) {
-                                setParametersValues(parameterProperties);
-                                // Скрываем невыбранные опции
-                                hideUnselectedOptions('parameters');
-                                //  console.log('Автоматически проставлены параметры:', parameterProperties);
-                            }
-
-                            // Показываем уведомление только если что-то проставилось
-                            if (pollutionProperties.length > 0 || parameterProperties.length > 0) {
-                                if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
-                                    BX.UI.Notification.Center.notify({
-                                        content: `Автоматически выбраны степени загрязнения и параметры для товара`,
-                                        position: "top-right",
-                                        autoHideDelay: 2000
-                                    });
-                                }
-                            } else {
-                                // console.log('Для данного товара нет автоматических настроек');
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Ошибка JSON свойства товара:', e);
-                    }
-                } else {
-                    console.error('Ошибка загрузки свойств товара:', xhr.status);
-                }
+    if ($select.hasClass('select2-hidden-accessible')) {
+        // Для Select2: очищаем все опции
+        $select.empty();
+        
+        // Добавляем только placeholder опцию
+        const placeholderText = selectId === 'pollution_degree' ? 
+            'Нет доступных степеней загрязнения' : 
+            'Нет доступных параметров';
+            
+        $select.append(new Option(placeholderText, ''));
+        
+        // Обновляем Select2
+        $select.trigger('change.select2');
+    } else {
+        // Для обычного селекта: скрываем все опции кроме первой
+        const select = document.getElementById(selectId);
+        Array.from(select.options).forEach((option, index) => {
+            if (index === 0) {
+                option.style.display = '';
+                option.text = selectId === 'pollution_degree' ? 
+                    'Нет доступных степеней загрязнения' : 
+                    'Нет доступных параметров';
+            } else {
+                option.style.display = 'none';
             }
-        };
-        xhr.send();
+        });
     }
+}
+
+    // Функция загрузки свойств товара и установки степеней загрязнения и параметров
+function loadProductPropertiesAndSetSelects(productId) {
+    console.log('Загружаем свойства товара:', productId);
+
+    const xhr = new XMLHttpRequest();
+    const url = `/local/ajax/calculator_ajax_handler.php?action=get_product_properties&product_id=${productId}&sessid=<?= bitrix_sessid() ?>`;
+
+    xhr.open('GET', url, true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    console.log('Получены свойства товара:', data);
+
+                    if (data.success) {
+                        const pollutionProperties = data.pollution_properties || [];
+                        const parameterProperties = data.parameter_properties || [];
+
+                        console.log('Степени загрязнения:', pollutionProperties);
+                        console.log('Параметры:', parameterProperties);
+
+                        // Обрабатываем степени загрязнения
+                        if (pollutionProperties.length > 0) {
+                            setPollutionDegreeValues(pollutionProperties);
+                        } else {
+                            // Если нет подходящих опций - показываем пустой селект
+                            showEmptySelect('pollution_degree');
+                        }
+
+                        // Обрабатываем параметры
+                        if (parameterProperties.length > 0) {
+                            setParametersValues(parameterProperties);
+                        } else {
+                            // Если нет подходящих опций - показываем пустой селект
+                            showEmptySelect('parameters');
+                        }
+
+                        // Показываем уведомление только если что-то есть
+                        if (pollutionProperties.length > 0 || parameterProperties.length > 0) {
+                            if (typeof BX !== 'undefined' && BX.UI && BX.UI.Notification) {
+                                BX.UI.Notification.Center.notify({
+                                    content: `Доступны параметры для выбора`,
+                                    position: "top-right",
+                                    autoHideDelay: 2000
+                                });
+                            }
+                        } else {
+                            console.log('Для данного товара нет доступных параметров');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Ошибка JSON свойства товара:', e);
+                }
+            } else {
+                console.error('Ошибка загрузки свойств товара:', xhr.status);
+            }
+        }
+    };
+    xhr.send();
+}
 
 function setPollutionDegreeValues(values) {
     console.log('Показываем только подходящие степени загрязнения:', values);
@@ -1332,15 +1362,22 @@ function setPollutionDegreeValues(values) {
         return;
     }
 
-    // Сначала показываем все опции
+    // Если нет подходящих значений - показываем пустой селект
+    if (!values || values.length === 0) {
+        showEmptySelect('pollution_degree');
+        return;
+    }
+
+    // Сначала восстанавливаем все опции
     restoreAllOptions('pollution_degree');
 
     if ($pollutionSelect.hasClass('select2-hidden-accessible')) {
-        // Для Select2: удаляем неподходящие опции из DOM
+        // Для Select2: удаляем неподходящие опции
         $pollutionSelect.find('option').each(function() {
             const optionValue = jQuery(this).val();
             if (optionValue && !values.includes(optionValue)) {
                 jQuery(this).remove();
+                document.getElementById('coefficient').innerText = '0.0';
             }
         });
         
@@ -1367,15 +1404,21 @@ function setParametersValues(values) {
         return;
     }
 
-    // Сначала показываем все опции
+    if (!values || values.length === 0) {
+        showEmptySelect('parameters');
+        return;
+    }
+
+    // Сначала восстанавливаем все опции
     restoreAllOptions('parameters');
 
     if ($parametersSelect.hasClass('select2-hidden-accessible')) {
-        // Для Select2: удаляем неподходящие опции из DOM
+        // Для Select2: удаляем неподходящие опции
         $parametersSelect.find('option').each(function() {
             const optionValue = jQuery(this).val();
             if (optionValue && !values.includes(optionValue)) {
                 jQuery(this).remove();
+                document.getElementById('coefficient_parameters').innerText = '0.0';
             }
         });
         

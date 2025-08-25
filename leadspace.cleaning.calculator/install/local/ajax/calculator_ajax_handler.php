@@ -861,7 +861,7 @@ case 'get_work_details':
             }
 
             $sumvolume = $volume * $volume_price;
-            $finalPrice = round($price * $coefficient + $sumvolume, 2);
+            $finalPrice = round(($price * $coefficient) + ($sumvolume * $coefficient), 2);
 
             $productRowFields = [
                 'OWNER_ID' => $dealId,
